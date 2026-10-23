@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWS Rekenmodel: Contrail Avoidance Analysis</title>
+    <style>
+        :root {
+            --primary: #005f73;
+            --secondary: #0a9396;
+            --accent: #ee9b00;
+            --bg: #f8f9fa;
+            --card-bg: #ffffff;
+            --text: #2b2d42;
+            --border: #e9ecef;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 24px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 16px;
+        }
+
+        h1 {
+            color: var(--primary);
+            margin: 0 0 8px 0;
+            font-size: 1.8rem;
+        }
+
+        p.subtitle {
+            margin: 0;
+            color: #6c757d;
+            font-size: 1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 850px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+        }
+
+        .card h2 {
+            font-size: 1.2rem;
+            color: var(--primary);
+            margin-top: 0;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--secondary);
+        }
+
+        .unit {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+
+        th, td {
+            padding: 10px 12px;
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th:first-child, td:first-child {
+            text-align: left;
+        }
+
+        th {
+            background-color: #f1f5f9;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .highlight {
+            font-weight: bold;
+            background-color: #f0fdf4;
+        }
+
+        .delta-plus {
+            color: #c1121f;
+        }
+
+        .delta-minus {
+            color: #2b9348;
+            font-weight: bold;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--secondary);
+        }
+
+        .stat-card .title {
+            font-size: 0.8rem;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+
+        .stat-card .value {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>PWS Rekenmodel: Contrail Avoidance Analysis</h1>
+        <p class="subtitle">Onderzoeksmodel Klimaatimpact Luchtvaart — Mohammed & Boris (6v2)</p>
+    </header>
+
+    <div class="summary-cards">
+        <div class="stat-card">
+            <div class="title">Route & Vliegtuig</div>
+            <div class="value" id="summary-route">AMS - JFK</div>
+            <span id="summary-aircraft" style="font-size: 0.8rem; color: #6c757d;">Boeing 787-9</span>
+        </div>
+        <div class="stat-card">
+            <div class="title">Extra Kosten Omvliegen</div>
+            <div class="value" id="summary-cost">+€ 0</div>
+        </div>
+        <div class="stat-card">
+            <div class="title">Netto Klimaatimpact (Δ RF)</div>
+            <div class="value" id="summary-rf-delta" style="color: #2b9348;">-0.00 mW/m²</div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <!-- Invoer & Instellingen -->
+        <div class="card">
+            <h2>1. Scenario Instellingen</h2>
+            
+            <div class="form-group">
+                <label for="route">Geselecteerde Route</label>
+                <select id="route">
+                    <option value="AMS-JFK" data-dist="5860" data-time="6.5" data-fuel="35.0" data-co2="110.7">AMS - JFK (Amsterdam - New York)</option>
+                    <option value="AMS-DXB" data-dist="5170" data-time="6.0" data-fuel="31.0" data-co2="98.0">AMS - DXB (Amsterdam - Dubai)</option>
+                    <option value="AMS-LHR" data-dist="370" data-time="1.0" data-fuel="2.5" data-co2="7.9">AMS - LHR (Amsterdam - Londen)</option>
+                    <option value="AMS-CUR" data-dist="7830" data-time="9.0" data-fuel="52.0" data-co2="164.3">AMS - CUR (Amsterdam - Curaçao)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="aircraft">Vliegtuigtype</label>
+                <select id="aircraft">
+                    <option value="B787-9">Boeing 787-9</option>
+                    <option value="A350-900">Airbus A350-900</option>
+                    <option value="B777-300ER">Boeing 777-300ER</option>
+                    <option value="A320neo">Airbus A320neo</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="detour">Omvliegafstand (%)</label>
+                <input type="number" id="detour" value="5.0" step="0.1" min="0">
+                <div class="unit">Percentage extra afstand ter vermijding ISSR</div>
+            </div>
+
+            <div class="form-group">
+                <label for="fuelPrice">Kerosineprijs (€ / ton)</label>
+                <input type="number" id="fuelPrice" value="850" step="10">
+                <div class="unit">Marktprijs Jet A1</div>
+            </div>
+
+            <div class="form-group">
+                <label for="etsPrice">EU ETS CO2-prijs (€ / ton CO2)</label>
+                <input type="number" id="etsPrice" value="85" step="5">
+                <div class="unit">Huidige prijs koolstofrechten EU ETS</div>
+            </div>
+
+            <div class="form-group">
+                <label for="opsCost">Personeel & Onderhoud (€ / uur)</label>
+                <input type="number" id="opsCost" value="450" step="10">
+                <div class="unit">Kosten per extra vlieguur</div>
+            </div>
+
+            <div class="form-group">
+                <label for="contrailRf">Contrail Stralingsforcering (RF)</label>
+                <input type="number" id="contrailRf" value="45.0" step="0.1">
+                <div class="unit">mW/m² (Schatting van vermeden contrail)</div>
+            </div>
+        </div>
+
+        <!-- Resultaten & Vergelijking -->
+        <div class="card">
+            <h2>2. Vergelijking: Standaard Route vs. Omvliegtraject</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metriek / Variabele</th>
+                        <th>Baseline</th>
+                        <th>Omvliegtraject</th>
+                        <th>Verschil (Δ)</th>
+                        <th>Eenheid</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Totale Afstand</td>
+                        <td id="dist-base">5.860</td>
+                        <td id="dist-detour">-</td>
+                        <td id="dist-delta" class="delta-plus">-</td>
+                        <td>km</td>
+                    </tr>
+                    <tr>
+                        <td>Vliegtijd</td>
+                        <td id="time-base">6,5</td>
+                        <td id="time-detour">-</td>
+                        <td id="time-delta" class="delta-plus">-</td>
+                        <td>uur</td>
+                    </tr>
+                    <tr>
+                        <td>Kerosineverbruik</td>
+                        <td id="fuel-base">35,0</td>
+                        <td id="fuel-detour">-</td>
+                        <td id="fuel-delta" class="delta-plus">-</td>
+                        <td>ton</td>
+                    </tr>
+                    <tr>
+                        <td>CO2-uitstoot</td>
+                        <td id="co2-base">110,7</td>
+                        <td id="co2-detour">-</td>
+                        <td id="co2-delta" class="delta-plus">-</td>
+                        <td>ton CO2</td>
+                    </tr>
+                    <tr>
+                        <td>Kerosinekosten</td>
+                        <td id="cost-fuel-base">-</td>
+                        <td id="cost-fuel-detour">-</td>
+                        <td id="cost-fuel-delta" class="delta-plus">-</td>
+                        <td>EUR</td>
+                    </tr>
+                    <tr>
+                        <td>EU ETS CO2-Kosten</td>
+                        <td id="cost-ets-base">-</td>
+                        <td id="cost-ets-detour">-</td>
+                        <td id="cost-ets-delta" class="delta-plus">-</td>
+                        <td>EUR</td>
+                    </tr>
+                    <tr>
+                        <td>Personeel & Onderhoud</td>
+                        <td id="cost-ops-base">-</td>
+                        <td id="cost-ops-detour">-</td>
+                        <td id="cost-ops-delta" class="delta-plus">-</td>
+                        <td>EUR</td>
+                    </tr>
+                    <tr class="highlight">
+                        <td>Totale Operationele Kosten</td>
+                        <td id="cost-total-base">-</td>
+                        <td id="cost-total-detour">-</td>
+                        <td id="cost-total-delta" class="delta-plus">-</td>
+                        <td>EUR</td>
+                    </tr>
+                    <tr>
+                        <td>Contrail Stralingsforcering (RF)</td>
+                        <td id="rf-contrail-base">45,00</td>
+                        <td id="rf-contrail-detour">0,00</td>
+                        <td id="rf-contrail-delta" class="delta-minus">-45,00</td>
+                        <td>mW/m²</td>
+                    </tr>
+                    <tr>
+                        <td>CO2 Stralingsforcering Eq.</td>
+                        <td>13,29</td>
+                        <td id="rf-co2-detour">-</td>
+                        <td id="rf-co2-delta" class="delta-plus">-</td>
+                        <td>mW/m²</td>
+                    </tr>
+                    <tr class="highlight">
+                        <td>Netto Klimaatimpact (RF Totaal)</td>
+                        <td id="rf-total-base">58,29</td>
+                        <td id="rf-total-detour">-</td>
+                        <td id="rf-total-delta" class="delta-minus">-</td>
+                        <td>mW/m²</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function formatNumber(num, decimals = 1) {
+        return num.toLocaleString('nl-NL', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    function formatCurrency(num) {
+        return '€ ' + Math.round(num).toLocaleString('nl-NL');
+    }
+
+    function calculate() {
+        const routeSelect = document.getElementById('route');
+        const selectedOption = routeSelect.options[routeSelect.selectedIndex];
+
+        const baseDistance = parseFloat(selectedOption.getAttribute('data-dist'));
+        const baseTime = parseFloat(selectedOption.getAttribute('data-time'));
+        const baseFuel = parseFloat(selectedOption.getAttribute('data-fuel'));
+        const baseCo2 = parseFloat(selectedOption.getAttribute('data-co2'));
+
+        const detourPct = parseFloat(document.getElementById('detour').value) / 100 || 0;
+        const fuelPrice = parseFloat(document.getElementById('fuelPrice').value) || 0;
+        const etsPrice = parseFloat(document.getElementById('etsPrice').value) || 0;
+        const opsCost = parseFloat(document.getElementById('opsCost').value) || 0;
+        const baseContrailRf = parseFloat(document.getElementById('contrailRf').value) || 0;
+
+        // Afstand, tijd, verbruik
+        const detourDistance = baseDistance * (1 + detourPct);
+        const deltaDistance = detourDistance - baseDistance;
+
+        const detourTime = baseTime * (1 + detourPct);
+        const deltaTime = detourTime - baseTime;
+
+        const detourFuel = baseFuel * (1 + detourPct);
+        const deltaFuel = detourFuel - baseFuel;
+
+        const detourCo2 = baseCo2 * (1 + detourPct);
+        const deltaCo2 = detourCo2 - baseCo2;
+
+        // Kosten
+        const baseFuelCost = baseFuel * fuelPrice;
+        const detourFuelCost = detourFuel * fuelPrice;
+        const deltaFuelCost = detourFuelCost - baseFuelCost;
+
+        const baseEtsCost = baseCo2 * etsPrice;
+        const detourEtsCost = detourCo2 * etsPrice;
+        const deltaEtsCost = detourEtsCost - baseEtsCost;
+
+        const baseOpsCost = baseTime * opsCost;
+        const detourOpsCost = detourTime * opsCost;
+        const deltaOpsCost = detourOpsCost - baseOpsCost;
+
+        const baseTotalCost = baseFuelCost + baseEtsCost + baseOpsCost;
+        const detourTotalCost = detourFuelCost + detourEtsCost + detourOpsCost;
+        const deltaTotalCost = detourTotalCost - baseTotalCost;
+
+        // Correcte Vermijding Logica: Contrail RF op omvliegtraject = 0 mW/m²
+        const detourContrailRf = 0.00; 
+        const deltaContrailRf = detourContrailRf - baseContrailRf;
+
+        const baseCo2Rf = 13.29;
+        const detourCo2Rf = baseCo2Rf * (1 + detourPct);
+        const deltaCo2Rf = detourCo2Rf - baseCo2Rf;
+
+        const baseTotalRf = baseContrailRf + baseCo2Rf;
+        const detourTotalRf = detourContrailRf + detourCo2Rf;
+        const deltaTotalRf = detourTotalRf - baseTotalRf;
+
+        // Base labels updaten
+        document.getElementById('dist-base').innerText = formatNumber(baseDistance, 0);
+        document.getElementById('time-base').innerText = formatNumber(baseTime, 1);
+        document.getElementById('fuel-base').innerText = formatNumber(baseFuel, 1);
+        document.getElementById('co2-base').innerText = formatNumber(baseCo2, 1);
+
+        // Update Tabel
+        document.getElementById('dist-detour').innerText = formatNumber(detourDistance, 0);
+        document.getElementById('dist-delta').innerText = '+' + formatNumber(deltaDistance, 0);
+
+        document.getElementById('time-detour').innerText = formatNumber(detourTime, 1);
+        document.getElementById('time-delta').innerText = '+' + formatNumber(deltaTime, 1);
+
+        document.getElementById('fuel-detour').innerText = formatNumber(detourFuel, 1);
+        document.getElementById('fuel-delta').innerText = '+' + formatNumber(deltaFuel, 1);
+
+        document.getElementById('co2-detour').innerText = formatNumber(detourCo2, 1);
+        document.getElementById('co2-delta').innerText = '+' + formatNumber(deltaCo2, 1);
+
+        document.getElementById('cost-fuel-base').innerText = formatCurrency(baseFuelCost);
+        document.getElementById('cost-fuel-detour').innerText = formatCurrency(detourFuelCost);
+        document.getElementById('cost-fuel-delta').innerText = '+' + formatCurrency(deltaFuelCost);
+
+        document.getElementById('cost-ets-base').innerText = formatCurrency(baseEtsCost);
+        document.getElementById('cost-ets-detour').innerText = formatCurrency(detourEtsCost);
+        document.getElementById('cost-ets-delta').innerText = '+' + formatCurrency(deltaEtsCost);
+
+        document.getElementById('cost-ops-base').innerText = formatCurrency(baseOpsCost);
+        document.getElementById('cost-ops-detour').innerText = formatCurrency(detourOpsCost);
+        document.getElementById('cost-ops-delta').innerText = '+' + formatCurrency(deltaOpsCost);
+
+        document.getElementById('cost-total-base').innerText = formatCurrency(baseTotalCost);
+        document.getElementById('cost-total-detour').innerText = formatCurrency(detourTotalCost);
+        document.getElementById('cost-total-delta').innerText = '+' + formatCurrency(deltaTotalCost);
+
+        document.getElementById('rf-contrail-base').innerText = formatNumber(baseContrailRf, 2);
+        document.getElementById('rf-contrail-detour').innerText = formatNumber(detourContrailRf, 2);
+        document.getElementById('rf-contrail-delta').innerText = formatNumber(deltaContrailRf, 2);
+
+        document.getElementById('rf-co2-detour').innerText = formatNumber(detourCo2Rf, 2);
+        document.getElementById('rf-co2-delta').innerText = '+' + formatNumber(deltaCo2Rf, 2);
+
+        document.getElementById('rf-total-base').innerText = formatNumber(baseTotalRf, 2);
+        document.getElementById('rf-total-detour').innerText = formatNumber(detourTotalRf, 2);
+        
+        const rfDeltaElem = document.getElementById('rf-total-delta');
+        rfDeltaElem.innerText = formatNumber(deltaTotalRf, 2);
+        
+        if (deltaTotalRf < 0) {
+            rfDeltaElem.className = 'delta-minus';
+        } else {
+            rfDeltaElem.className = 'delta-plus';
+        }
+
+        // Summary Kaarten
+        document.getElementById('summary-route').innerText = routeSelect.value.replace('-', ' - ');
+        document.getElementById('summary-aircraft').innerText = document.getElementById('aircraft').options[document.getElementById('aircraft').selectedIndex].text;
+        document.getElementById('summary-cost').innerText = '+' + formatCurrency(deltaTotalCost);
+        
+        const summaryRf = document.getElementById('summary-rf-delta');
+        summaryRf.innerText = formatNumber(deltaTotalRf, 2) + ' mW/m²';
+        summaryRf.style.color = deltaTotalRf < 0 ? '#2b9348' : '#c1121f';
+    }
+
+    // Event listeners
+    document.querySelectorAll('input, select').forEach(elem => elem.addEventListener('change', calculate));
+    document.querySelectorAll('input').forEach(elem => elem.addEventListener('input', calculate));
+
+    calculate();
+</script>
+
+</body>
+</html>
